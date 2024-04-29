@@ -24,6 +24,7 @@ string webPages[10] = {"google.com", "yahoo.com", "youtube.com", "amazon.com", "
 int counter = 0;
 
 void listen() {
+	srand(time(0));
 	while (true) {
 		sem_wait(&empty);
 		sem_wait(&mutex);
