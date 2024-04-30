@@ -5,6 +5,8 @@
 #include <string>
 #include <cstdlib>
 #include <queue>
+#include <vector>
+#include <random>
 using namespace std;
 
 sem_t empty;
@@ -24,16 +26,16 @@ string webPages[10] = {"google.com", "yahoo.com", "youtube.com", "amazon.com", "
 int counter = 0;
 
 void listen() {
-	srand(time(0));
+	thread_local std::mt19937 rng(std::random_device{}());
 	while (true) {
 		sem_wait(&empty);
 		sem_wait(&mutex);
-		std::this_thread::sleep_for(std::chrono::seconds((rand() % 3) + 1));
+		std::this_thread::sleep_for(std::chrono::seconds((rng() % 3) + 1));
 		requestStructure request;
 		counter++;
 		request.request_id = counter;
 		request.ip_address = "";
-		int num = rand() % 10;
+		int num = rng() % 10;
 		request.page_requested = webPages[num];
 		msg_queue.push(request);
 		sem_post(&mutex);
@@ -55,7 +57,7 @@ void do_request() {
 		msg_queue.pop();
 		cout << "thread " << std::this_thread::get_id() << " completed request " << request.request_id << " requesting webpage " << request.page_requested << endl;
 		sem_post(&mutex);
-		sem_post(&full);
+		sem_post(&empty);
 	}	
 }
 
@@ -65,11 +67,20 @@ int main() {
 	sem_init(&full, 0, 0);
 	sem_init(&mutex, 0, 1);
 	// create producer and consumer threads
-	thread listen_thread(listen);
-	thread request_thread(do_request);
-	// wait for threads to finish (should never happen)
-	listen_thread.join();
-	request_thread.join();
+	vector<thread> listen_threads;
+	for (int i = 0; i < 5; i++) {
+		listen_threads.push_back(thread(listen));
+	}
+	vector<thread> request_threads;
+	for (int i = 0; i < 5; i++) {
+		request_threads.push_back(thread(do_request));
+	}
+	for (auto& thread : listen_threads) {
+		thread.join();
+	}
+	for (auto& thread : request_threads) {
+		thread.join();
+	}
 	// destroy semaphores
 	sem_destroy(&empty);
 	sem_destroy(&full);
